@@ -14,7 +14,7 @@ total_image_shown = 0
 total_time_spent = 0
 
 #command line arguments
-parser = argparse.ArgumentParser(description='Rotate images from directory in given timeout')
+parser = argparse.ArgumentParser(description='Shows images one by one from choosen directory in given timeout')
 
 parser.add_argument('-path', metavar='path', default='.',
                     help='path to the images directory (current directory by default)')
