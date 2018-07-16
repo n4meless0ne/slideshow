@@ -49,7 +49,7 @@ cur_photo = 0
 
 for dirpath, dirs, files in walk(args.path):
     for name in files:
-        if any(x in name for x in img_ext):        
+        if any(x in str.lower(name) for x in img_ext):        
             img_list.append(join(dirpath, name))
 
 
