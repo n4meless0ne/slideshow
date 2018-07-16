@@ -15,7 +15,7 @@ This tool helps artists to practice gesture drawings using images on their local
 python slideshow.py [-h] [-path path] [-timeout TIMEOUT] [-width WIDTH]
                     [-height HEIGHT]
 
-Rotate images from directory in given timeout
+Shows images one by one from choosen directory in given timeout
 
 optional arguments:
   -h, --help        show this help message and exit
