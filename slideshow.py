@@ -14,7 +14,7 @@ total_image_shown = 0
 total_time_spent = 0
 
 #command line arguments
-parser = argparse.ArgumentParser(description='Shows images one by one from choosen directory in given timeout')
+parser = argparse.ArgumentParser(description='Rotate images from directory in given timeout')
 
 parser.add_argument('-path', metavar='path', default='.',
                     help='path to the images directory (current directory by default)')
@@ -33,6 +33,7 @@ print(args)
 #timeout in seconds
 max_timer_value = args.timeout
 cur_timer = max_timer_value
+timer_paused = False
 
 #supported extensions
 img_ext = ['.jpg', '.png', '.bmp']
@@ -61,11 +62,13 @@ if len(img_list) == 0:
 shuffle(img_list)
 
 def updateTimeLabel():
+    global timer_paused
     global cur_timer
-    cur_timer -= 1
 
-    if cur_timer < 0:
-        nextImage(1);
+    if not timer_paused:
+        cur_timer -= 1
+        if cur_timer < 0:
+            nextImage(1);
 
     textTime = '{:02d}:{:02d}'.format(int(cur_timer / 60), int(cur_timer % 60))
     window.title('Slide show ({})'.format(textTime))
@@ -95,6 +98,15 @@ def nextImage(direction):
     
     canvas.itemconfig(canvas_img, image = cur_photo)
 
+def pauseImage():
+    global timer_paused
+
+    if timer_paused:
+        timer_paused = False
+        print('Unpaused ... ')   
+    else:
+        timer_paused = True
+        print('Paused ... ')   
 
 def loadImage(img_file_path):
 
@@ -130,11 +142,15 @@ def loadImage(img_file_path):
     y = hs/32 + button_height
 
     if y > (hs-w_height):
-        y = 0    
+        y = 0
 
     # set the dimensions of the screen 
     # and where it is placed
-    window.geometry('%dx%d+%d+%d' % (w_width, w_height + button_height, x, y))
+    # if we don't see right side - slighly move window to the left
+    if window.winfo_x() > x:
+    	window.geometry('%dx%d+%d+%d' % (w_width, w_height + button_height, x, y))
+    else:
+        window.geometry('%dx%d' % (w_width, w_height + button_height))       
     
     pil_img = pil_img.resize((w_width, w_height), resample=PIL.Image.LANCZOS)
 
@@ -150,17 +166,20 @@ window = tk.Tk()
 window.title('Slide show')
 
 # Prev button
-tk.Button(window, text='Prev image', width=30, command=lambda: nextImage(-1)).grid(row = 0, column=0, sticky=tk.N+tk.E+tk.S+tk.W)
+tk.Button(window, text='Prev image', width=5, command=lambda: nextImage(-1)).grid(row = 0, column=0, sticky=tk.N+tk.E+tk.S+tk.W)
+
+# Pause button
+tk.Button(window, text='Pause', width=5, command=lambda: pauseImage()).grid(row = 0, column=1, sticky=tk.N+tk.E+tk.S+tk.W)
 
 # Next button
-tk.Button(window, text='Next image', width=30, command=lambda: nextImage(1)).grid(row = 0, column=1, sticky=tk.N+tk.E+tk.S+tk.W)
+tk.Button(window, text='Next image', width=5, command=lambda: nextImage(1)).grid(row = 0, column=2, sticky=tk.N+tk.E+tk.S+tk.W)
 
 # Load image
 cur_photo = loadImage(img_list[cur_img_index])
 
 # Create a canvas that can fit the above image
 canvas = tk.Canvas(window, width = default_image_width, height = default_image_height)
-canvas.grid(row = 1, columnspan=2)
+canvas.grid(row = 1, columnspan=3)
 
 # Add a PhotoImage to the Canvas
 canvas_img = canvas.create_image(0, 0, image=cur_photo, anchor=tk.NW)
