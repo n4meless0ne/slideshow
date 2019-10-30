@@ -1,23 +1,50 @@
 import sys
 import argparse
+import random
+import tempfile
+import shutil
 
 import tkinter as tk
 import PIL.Image, PIL.ImageTk
 
-from os import walk
-from os.path import join
-from random import shuffle
+from os import walk, mkdir
+from os.path import join, exists
+
+from zipfile import ZipFile
+
+def isImageSupported(file_name):
+    # supported extensions
+    img_ext = ['.jpg', '.png', '.bmp']
+
+    if any(x in str.lower(file_name) for x in img_ext):
+        return True
+
+    return False
 
 
-#some statistics
+def findAllSupportedFiles(path):
+    files_list = []
+
+    for dirpath, dirs, files in walk(path):
+        for name in files:
+            if isImageSupported(name):
+                files_list.append(join(dirpath, name))
+
+    return files_list
+
+# some statistics
 total_image_shown = 0
 total_time_spent = 0
 
-#command line arguments
+# command line arguments
 parser = argparse.ArgumentParser(description='Rotate images from directory in given timeout')
 
-parser.add_argument('-path', metavar='path', default='.',
+parser.add_argument('-path', metavar='path', default='',
                     help='path to the images directory (current directory by default)')
+
+parser.add_argument('-zip-path', metavar='zip_path', default='',
+                    help='path to the directory with zip files contains images')
+
 parser.add_argument('-timeout', dest='timeout', type=int, default=60,
                     help='timeout in seconds (60 by default)')
 
@@ -30,13 +57,10 @@ parser.add_argument('-height', dest='height', type=int, default=800,
 args = parser.parse_args()
 print(args)
 
-#timeout in seconds
+# timeout in seconds
 max_timer_value = args.timeout
 cur_timer = max_timer_value
 timer_paused = False
-
-#supported extensions
-img_ext = ['.jpg', '.png', '.bmp']
 
 default_image_width = args.width
 default_image_height = args.height
@@ -48,18 +72,43 @@ img_list = []
 cur_img_index = 0
 cur_photo = 0
 
-for dirpath, dirs, files in walk(args.path):
-    for name in files:
-        if any(x in str.lower(name) for x in img_ext):        
-            img_list.append(join(dirpath, name))
+zip_extract_temp_path = ''
 
+if args.zip_path:
+
+    zip_files_list = []
+
+    # if zip-path defined - use it to find archives
+    for dirpath, dirs, files in walk(args.zip_path):
+        for name in files:
+            if any(x in str.lower(name) for x in ['.zip']):
+                zip_files_list.append(join(dirpath, name))
+
+    # now peek one random archive file
+    zip_file = random.choice(zip_files_list)
+
+    # extract the zip file to temp directory
+    if zip_file:
+        with ZipFile(zip_file, 'r') as zipObj:
+            zip_extract_temp_path = join(tempfile.gettempdir(), '_slideshow_ref')
+
+            if exists(zip_extract_temp_path):
+                shutil.rmtree(zip_extract_temp_path)
+
+            zipObj.extractall(zip_extract_temp_path)
+            img_list = findAllSupportedFiles(zip_extract_temp_path)
+
+else:
+    # if use path ot . to find all supported images
+    img_list = findAllSupportedFiles(args.path if args.path else '.')
 
 if len(img_list) == 0:
     print('No supported images found')
     sys.exit(-1)
 
 # shuffle images
-shuffle(img_list)
+random.shuffle(img_list)
+
 
 def updateTimeLabel():
     global timer_paused
@@ -72,41 +121,44 @@ def updateTimeLabel():
 
     textTime = '{:02d}:{:02d}'.format(int(cur_timer / 60), int(cur_timer % 60))
     window.title('Slide show ({})'.format(textTime))
-    
+
     window.after(1000, updateTimeLabel)
-    
+
+
 def nextImage(direction):
     global cur_img_index, task_id, canvas, canvas_img, cur_timer, cur_photo
     global total_image_shown, total_time_spent
-    
+
     total_time_spent += (max_timer_value - cur_timer)
-    
-    print('Took {} seconds. '.format(max_timer_value - cur_timer))    
-    
+
+    print('Took {} seconds. '.format(max_timer_value - cur_timer))
+
     cur_timer = max_timer_value
     cur_img_index += direction
-    
+
     if cur_img_index == len(img_list):
         cur_img_index = 0
     elif cur_img_index < 0:
         cur_img_index = len(img_list) - 1
-            
+
     cur_photo = loadImage(img_list[cur_img_index])
 
     canvas.width = w_width
     canvas.height = w_height
-    
+
     canvas.itemconfig(canvas_img, image = cur_photo)
+
 
 def pauseImage():
     global timer_paused
 
     if timer_paused:
         timer_paused = False
-        print('Unpaused ... ')   
+        print('Unpaused ... ')
     else:
         timer_paused = True
-        print('Paused ... ')   
+        print('Paused ... ')
+
 
 def loadImage(img_file_path):
 
@@ -115,9 +167,9 @@ def loadImage(img_file_path):
     # Window default size
     w_width = default_image_width
     w_height = default_image_height
-    
+
     # Load an image
-    pil_img = PIL.Image.open(img_file_path)    
+    pil_img = PIL.Image.open(img_file_path)
 
     # Get the image dimensions
     width, height = pil_img.size
@@ -137,21 +189,21 @@ def loadImage(img_file_path):
 
     # calculate x and y coordinates for the Tk root window
     button_height = 26
-    
+
     x = ws - w_width - ws/64
     y = hs/32 + button_height
 
     if y > (hs-w_height):
         y = 0
 
-    # set the dimensions of the screen 
+    # set the dimensions of the screen
     # and where it is placed
     # if we don't see right side - slighly move window to the left
     if window.winfo_x() > x:
-    	window.geometry('%dx%d+%d+%d' % (w_width, w_height + button_height, x, y))
+        window.geometry('%dx%d+%d+%d' % (w_width, w_height + button_height, x, y))
     else:
-        window.geometry('%dx%d' % (w_width, w_height + button_height))       
-    
+        window.geometry('%dx%d' % (w_width, w_height + button_height))
+
     pil_img = pil_img.resize((w_width, w_height), resample=PIL.Image.LANCZOS)
 
     print('{}, w={}, h={}'.format(img_file_path, w_width, w_height))
@@ -189,6 +241,9 @@ window.after(1000, updateTimeLabel)
 
 # Run the window loop
 window.mainloop()
+
+if zip_extract_temp_path and exists(zip_extract_temp_path):
+    shutil.rmtree(zip_extract_temp_path)
 
 # Some statistics
 total_time_spent += (max_timer_value - cur_timer)
