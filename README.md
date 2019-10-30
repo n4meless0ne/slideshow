@@ -22,6 +22,7 @@ optional arguments:
   -path path        path to the images directory (current directory by
                     default)
   -zip-path zip_path path to the directory with zip files which contains images
+  -zip-file zip_file one zip file with images
   -timeout TIMEOUT  timeout in seconds (60 by default)
   -width WIDTH      window width in pixels (600 by default)
   -height HEIGHT    window height in pixels (800 by default)
