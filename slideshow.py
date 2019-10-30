@@ -12,25 +12,49 @@ from os.path import join, exists
 
 from zipfile import ZipFile
 
-def isImageSupported(file_name):
-    # supported extensions
-    img_ext = ['.jpg', '.png', '.bmp']
+image_extensions = ['.jpg', '.png', '.bmp']
+zip_extensions = ['.zip']
+temp_dir_name = '_slideshow_ref'
 
-    if any(x in str.lower(file_name) for x in img_ext):
+def is_file_valid(file_name, extensions):
+
+    if any(x in str.lower(file_name) for x in extensions):
         return True
 
     return False
 
 
-def findAllSupportedFiles(path):
+def findAllSupportedFiles(path, extensions):
+
+    if not path or not exists(path):
+        return []
+
     files_list = []
 
     for dirpath, dirs, files in walk(path):
         for name in files:
-            if isImageSupported(name):
+            if is_file_valid(name, extensions):
                 files_list.append(join(dirpath, name))
 
     return files_list
+
+
+def findAllSupportedZipFiles(zip_file):
+
+    if not zip_file or not exists(zip_file):
+        return []
+
+    with ZipFile(zip_file, 'r') as zipObj:
+        zip_extract_temp_path = join(tempfile.gettempdir(), temp_dir_name)
+
+        if exists(zip_extract_temp_path):
+            shutil.rmtree(zip_extract_temp_path)
+
+        zipObj.extractall(zip_extract_temp_path)
+        return findAllSupportedFiles(zip_extract_temp_path, image_extensions)
+
+    return []
+
 
 # some statistics
 total_image_shown = 0
@@ -44,6 +68,9 @@ parser.add_argument('-path', metavar='path', default='',
 
 parser.add_argument('-zip-path', metavar='zip_path', default='',
                     help='path to the directory with zip files contains images')
+
+parser.add_argument('-zip-file', metavar='zip_file', default='',
+                    help='zip file with images')
 
 parser.add_argument('-timeout', dest='timeout', type=int, default=60,
                     help='timeout in seconds (60 by default)')
@@ -74,33 +101,37 @@ cur_photo = 0
 
 zip_extract_temp_path = ''
 
-if args.zip_path:
+if args.zip_file:
 
-    zip_files_list = []
+    if not args.zip_file or not exists(args.zip_file):
+        print('File {} not found'.format(args.zip_file))
+        sys.exit(-1)
+
+    # extract the zip file to temp directory
+    img_list = findAllSupportedZipFiles(args.zip_file)
+
+elif args.zip_path:
+
+    if not args.zip_path or not exists(args.zip_path):
+        print('Directory {} not found'.format(args.zip_path))
+        sys.exit(-1)
 
     # if zip-path defined - use it to find archives
-    for dirpath, dirs, files in walk(args.zip_path):
-        for name in files:
-            if any(x in str.lower(name) for x in ['.zip']):
-                zip_files_list.append(join(dirpath, name))
+    zip_files_list = findAllSupportedFiles(args.zip_path, zip_extensions)
+
+    if len(zip_files_list) == 0:
+        print('No supported archives found in directory {}'.format(args.zip_path))
+        sys.exit(-1)
 
     # now peek one random archive file
     zip_file = random.choice(zip_files_list)
 
     # extract the zip file to temp directory
-    if zip_file:
-        with ZipFile(zip_file, 'r') as zipObj:
-            zip_extract_temp_path = join(tempfile.gettempdir(), '_slideshow_ref')
-
-            if exists(zip_extract_temp_path):
-                shutil.rmtree(zip_extract_temp_path)
-
-            zipObj.extractall(zip_extract_temp_path)
-            img_list = findAllSupportedFiles(zip_extract_temp_path)
+    img_list = findAllSupportedZipFiles(zip_file)
 
 else:
     # if use path ot . to find all supported images
-    img_list = findAllSupportedFiles(args.path if args.path else '.')
+    img_list = findAllSupportedFiles(args.path if args.path else '.', image_extensions)
 
 if len(img_list) == 0:
     print('No supported images found')
