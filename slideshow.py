@@ -1,59 +1,57 @@
-import sys
 import argparse
 import random
-import tempfile
 import shutil
-
+import sys
+import tempfile
 import tkinter as tk
-import PIL.Image, PIL.ImageTk
-
-from os import walk, mkdir
+from os import walk
 from os.path import join, exists
-
 from zipfile import ZipFile
+
+import PIL.Image
+import PIL.ImageTk
+import PIL.ImageOps
 
 image_extensions = ['.jpg', '.png', '.bmp']
 zip_extensions = ['.zip']
 temp_dir_name = '_slideshow_ref'
 
+
 def is_file_valid(file_name, extensions):
-
-    if any(x in str.lower(file_name) for x in extensions):
-        return True
-
-    return False
+    return any(x in str.lower(file_name) for x in extensions)
 
 
-def findAllSupportedFiles(path, extensions):
-
-    if not path or not exists(path):
-        return []
-
+def findAllSupportedFiles(path_list, extensions):
     files_list = []
 
-    for dirpath, dirs, files in walk(path):
-        for name in files:
-            if is_file_valid(name, extensions):
-                files_list.append(join(dirpath, name))
+    for path in path_list:
+        if not path or not exists(path):
+            continue
+
+        for dirpath, dirs, files in walk(path):
+            for name in files:
+                if is_file_valid(name, extensions):
+                    files_list.append(join(dirpath, name))
 
     return files_list
 
 
-def findAllSupportedZipFiles(zip_file):
+def findAllSupportedZipFiles(zip_file_list):
+    temp_path_names = []
+    for zip_file in zip_file_list:
+        if not zip_file or not exists(zip_file):
+            print('File {} not found'.zip_file)
 
-    if not zip_file or not exists(zip_file):
-        return []
+        with ZipFile(zip_file, 'r') as zipObj:
+            temp_path = tempfile.TemporaryDirectory()
 
-    with ZipFile(zip_file, 'r') as zipObj:
-        zip_extract_temp_path = join(tempfile.gettempdir(), temp_dir_name)
+            zipObj.extractall(temp_path.name)
 
-        if exists(zip_extract_temp_path):
-            shutil.rmtree(zip_extract_temp_path)
+            zip_extract_temp_paths.append(temp_path)
 
-        zipObj.extractall(zip_extract_temp_path)
-        return findAllSupportedFiles(zip_extract_temp_path, image_extensions)
+            temp_path_names.append(temp_path.name)
 
-    return []
+    return findAllSupportedFiles(temp_path_names, image_extensions)
 
 
 # some statistics
@@ -61,16 +59,17 @@ total_image_shown = 0
 total_time_spent = 0
 
 # command line arguments
-parser = argparse.ArgumentParser(description='Rotate images from directory in given timeout')
+parser = argparse.ArgumentParser(description='Rotate images from directory in given timeout.')
 
-parser.add_argument('-path', metavar='path', default='',
-                    help='path to the images directory (current directory by default)')
+parser.add_argument('-path', metavar='path', default='', nargs='+',
+                    help='paths to the images directory (current directory by default). You can specify many '
+                         'directories')
 
 parser.add_argument('-zip-path', metavar='zip_path', default='',
                     help='path to the directory with zip files contains images')
 
-parser.add_argument('-zip-file', metavar='zip_file', default='',
-                    help='zip file with images')
+parser.add_argument('-zip-file', metavar='zip_file', default='', nargs='+',
+                    help='zip files with images. You can specify many files.')
 
 parser.add_argument('-timeout', dest='timeout', type=int, default=60,
                     help='timeout in seconds (60 by default)')
@@ -99,15 +98,11 @@ img_list = []
 cur_img_index = 0
 cur_photo = 0
 
-zip_extract_temp_path = ''
+zip_extract_temp_paths = []
 
 if args.zip_file:
 
-    if not args.zip_file or not exists(args.zip_file):
-        print('File {} not found'.format(args.zip_file))
-        sys.exit(-1)
-
-    # extract the zip file to temp directory
+    # extract the zip files to temp directories and return list of images inside them
     img_list = findAllSupportedZipFiles(args.zip_file)
 
 elif args.zip_path:
@@ -117,7 +112,7 @@ elif args.zip_path:
         sys.exit(-1)
 
     # if zip-path defined - use it to find archives
-    zip_files_list = findAllSupportedFiles(args.zip_path, zip_extensions)
+    zip_files_list = findAllSupportedFiles([args.zip_path], zip_extensions)
 
     if len(zip_files_list) == 0:
         print('No supported archives found in directory {}'.format(args.zip_path))
@@ -127,7 +122,7 @@ elif args.zip_path:
     zip_file = random.choice(zip_files_list)
 
     # extract the zip file to temp directory
-    img_list = findAllSupportedZipFiles(zip_file)
+    img_list = findAllSupportedZipFiles([zip_file])
 
 else:
     # if use path ot . to find all supported images
@@ -139,6 +134,8 @@ if len(img_list) == 0:
 
 # shuffle images
 random.shuffle(img_list)
+
+print('{} images found'.format(len(img_list)))
 
 
 def updateTimeLabel():
@@ -177,7 +174,7 @@ def nextImage(direction):
     canvas.width = w_width
     canvas.height = w_height
 
-    canvas.itemconfig(canvas_img, image = cur_photo)
+    canvas.itemconfig(canvas_img, image=cur_photo)
 
 
 def pauseImage():
@@ -192,7 +189,6 @@ def pauseImage():
 
 
 def loadImage(img_file_path):
-
     global w_width, w_height, total_image_shown
 
     # Window default size
@@ -201,6 +197,8 @@ def loadImage(img_file_path):
 
     # Load an image
     pil_img = PIL.Image.open(img_file_path)
+
+    pil_img = PIL.ImageOps.exif_transpose(pil_img)
 
     # Get the image dimensions
     width, height = pil_img.size
@@ -215,16 +213,16 @@ def loadImage(img_file_path):
         w_width = int(w_height * img_ratio)
 
     # get screen width and height
-    ws = window.winfo_screenwidth() # width of the screen
-    hs = window.winfo_screenheight() # height of the screen
+    ws = window.winfo_screenwidth()  # width of the screen
+    hs = window.winfo_screenheight()  # height of the screen
 
     # calculate x and y coordinates for the Tk root window
     button_height = 26
 
-    x = ws - w_width - ws/64
-    y = hs/32 + button_height
+    x = ws - w_width - ws / 64
+    y = hs / 32 + button_height
 
-    if y > (hs-w_height):
+    if y > (hs - w_height):
         y = 0
 
     # set the dimensions of the screen
@@ -244,25 +242,29 @@ def loadImage(img_file_path):
     # Use PIL (Pillow) to convert to a PhotoImage
     return PIL.ImageTk.PhotoImage(pil_img)
 
+
 # Create a window
 window = tk.Tk()
 window.title('Slide show')
 
 # Prev button
-tk.Button(window, text='Prev image', width=5, command=lambda: nextImage(-1)).grid(row = 0, column=0, sticky=tk.N+tk.E+tk.S+tk.W)
+tk.Button(window, text='Prev image', width=5, command=lambda: nextImage(-1)).grid(row=0, column=0,
+                                                                                  sticky=tk.N + tk.E + tk.S + tk.W)
 
 # Pause button
-tk.Button(window, text='Pause', width=5, command=lambda: pauseImage()).grid(row = 0, column=1, sticky=tk.N+tk.E+tk.S+tk.W)
+tk.Button(window, text='Pause', width=5, command=lambda: pauseImage()).grid(row=0, column=1,
+                                                                            sticky=tk.N + tk.E + tk.S + tk.W)
 
 # Next button
-tk.Button(window, text='Next image', width=5, command=lambda: nextImage(1)).grid(row = 0, column=2, sticky=tk.N+tk.E+tk.S+tk.W)
+tk.Button(window, text='Next image', width=5, command=lambda: nextImage(1)).grid(row=0, column=2,
+                                                                                 sticky=tk.N + tk.E + tk.S + tk.W)
 
 # Load image
 cur_photo = loadImage(img_list[cur_img_index])
 
 # Create a canvas that can fit the above image
-canvas = tk.Canvas(window, width = default_image_width, height = default_image_height)
-canvas.grid(row = 1, columnspan=3)
+canvas = tk.Canvas(window, width=default_image_width, height=default_image_height)
+canvas.grid(row=1, columnspan=3)
 
 # Add a PhotoImage to the Canvas
 canvas_img = canvas.create_image(0, 0, image=cur_photo, anchor=tk.NW)
@@ -273,8 +275,9 @@ window.after(1000, updateTimeLabel)
 # Run the window loop
 window.mainloop()
 
-if zip_extract_temp_path and exists(zip_extract_temp_path):
-    shutil.rmtree(zip_extract_temp_path)
+#for zip_extract_temp_path in zip_extract_temp_paths:
+#    if zip_extract_temp_path and exists(zip_extract_temp_path):
+#        shutil.rmtree(zip_extract_temp_path)
 
 # Some statistics
 total_time_spent += (max_timer_value - cur_timer)
