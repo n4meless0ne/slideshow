@@ -1,20 +1,17 @@
 import argparse
 import random
-import shutil
 import sys
 import tempfile
 import tkinter as tk
+import PIL.Image
+import PIL.ImageTk
+import PIL.ImageOps
 from os import walk
 from os.path import join, exists
 from zipfile import ZipFile
 
-import PIL.Image
-import PIL.ImageTk
-import PIL.ImageOps
-
 image_extensions = ['.jpg', '.png', '.bmp']
 zip_extensions = ['.zip']
-temp_dir_name = '_slideshow_ref'
 
 
 def is_file_valid(file_name, extensions):
@@ -40,15 +37,19 @@ def findAllSupportedZipFiles(zip_file_list):
     temp_path_names = []
     for zip_file in zip_file_list:
         if not zip_file or not exists(zip_file):
-            print('File {} not found'.zip_file)
+            print('File {} not found'.format(zip_file))
 
         with ZipFile(zip_file, 'r') as zipObj:
+            # create temp directory
             temp_path = tempfile.TemporaryDirectory()
 
+            # extract files into temp directory
             zipObj.extractall(temp_path.name)
 
+            # save temp path object in global list
             zip_extract_temp_paths.append(temp_path)
 
+            # save path to temp directory in list
             temp_path_names.append(temp_path.name)
 
     return findAllSupportedFiles(temp_path_names, image_extensions)
@@ -118,14 +119,11 @@ elif args.zip_path:
         print('No supported archives found in directory {}'.format(args.zip_path))
         sys.exit(-1)
 
-    # now peek one random archive file
-    zip_file = random.choice(zip_files_list)
-
-    # extract the zip file to temp directory
-    img_list = findAllSupportedZipFiles([zip_file])
+    # now peek one random archive file and extract it to the temp directory
+    img_list = findAllSupportedZipFiles([random.choice(zip_files_list)])
 
 else:
-    # if use path ot . to find all supported images
+    # use specified path or current directory to find all supported images
     img_list = findAllSupportedFiles(args.path if args.path else '.', image_extensions)
 
 if len(img_list) == 0:
@@ -141,20 +139,27 @@ print('{} images found'.format(len(img_list)))
 def updateTimeLabel():
     global timer_paused
     global cur_timer
+    global timeImgLabel
 
     if not timer_paused:
         cur_timer -= 1
         if cur_timer < 0:
-            nextImage(1);
+            nextImage(1)
 
     textTime = '{:02d}:{:02d}'.format(int(cur_timer / 60), int(cur_timer % 60))
     window.title('Slide show ({})'.format(textTime))
+
+    timeImgLabel.config(text=textTime)
+
+    # when run out of time - make timer red
+    if cur_timer <= 5:
+        timeImgLabel.config(foreground='red')
 
     window.after(1000, updateTimeLabel)
 
 
 def nextImage(direction):
-    global cur_img_index, task_id, canvas, canvas_img, cur_timer, cur_photo
+    global cur_img_index, cur_timer, cur_photo
     global total_image_shown, total_time_spent
 
     total_time_spent += (max_timer_value - cur_timer)
@@ -162,6 +167,11 @@ def nextImage(direction):
     print('Took {} seconds. '.format(max_timer_value - cur_timer))
 
     cur_timer = max_timer_value
+
+    # set label default color
+    timeImgLabel.config(foreground='blue')
+
+    # next image index
     cur_img_index += direction
 
     if cur_img_index == len(img_list):
@@ -171,10 +181,7 @@ def nextImage(direction):
 
     cur_photo = loadImage(img_list[cur_img_index])
 
-    canvas.width = w_width
-    canvas.height = w_height
-
-    canvas.itemconfig(canvas_img, image=cur_photo)
+    timeImgLabel.config(image=cur_photo)
 
 
 def pauseImage():
@@ -191,16 +198,16 @@ def pauseImage():
 def loadImage(img_file_path):
     global w_width, w_height, total_image_shown
 
-    # Window default size
+    # window default size
     w_width = default_image_width
     w_height = default_image_height
 
-    # Load an image
+    # load an image
     pil_img = PIL.Image.open(img_file_path)
 
     pil_img = PIL.ImageOps.exif_transpose(pil_img)
 
-    # Get the image dimensions
+    # get the image dimensions
     width, height = pil_img.size
 
     # make window well scaled and not greater when original dimensions
@@ -217,7 +224,7 @@ def loadImage(img_file_path):
     hs = window.winfo_screenheight()  # height of the screen
 
     # calculate x and y coordinates for the Tk root window
-    button_height = 26
+    button_height = int(26 * 2.66)
 
     x = ws - w_width - ws / 64
     y = hs / 32 + button_height
@@ -225,13 +232,15 @@ def loadImage(img_file_path):
     if y > (hs - w_height):
         y = 0
 
-    # set the dimensions of the screen
-    # and where it is placed
-    # if we don't see right side - slighly move window to the left
+    # just magic variable
+    border_x = 6
+
+    # set the dimensions of the screen and where it is placed
+    # if we don't see right side - slightly move window to the left
     if window.winfo_x() > x:
-        window.geometry('%dx%d+%d+%d' % (w_width, w_height + button_height, x, y))
+        window.geometry('%dx%d+%d+%d' % (w_width + border_x, w_height + button_height, x, y))
     else:
-        window.geometry('%dx%d' % (w_width, w_height + button_height))
+        window.geometry('%dx%d' % (w_width + border_x, w_height + button_height))
 
     pil_img = pil_img.resize((w_width, w_height), resample=PIL.Image.LANCZOS)
 
@@ -239,47 +248,40 @@ def loadImage(img_file_path):
 
     total_image_shown += 1
 
-    # Use PIL (Pillow) to convert to a PhotoImage
+    # use PIL (Pillow) to convert to a PhotoImage
     return PIL.ImageTk.PhotoImage(pil_img)
 
 
-# Create a window
+# create a window
 window = tk.Tk()
 window.title('Slide show')
 
-# Prev button
-tk.Button(window, text='Prev image', width=5, command=lambda: nextImage(-1)).grid(row=0, column=0,
-                                                                                  sticky=tk.N + tk.E + tk.S + tk.W)
+# prev button
+tk.Button(window, text='Prev image', width=5,
+          command=lambda: nextImage(-1)).grid(row=0, column=0, sticky=tk.N + tk.E + tk.S + tk.W)
 
-# Pause button
-tk.Button(window, text='Pause', width=5, command=lambda: pauseImage()).grid(row=0, column=1,
-                                                                            sticky=tk.N + tk.E + tk.S + tk.W)
+# pause button
+tk.Button(window, text='Pause', width=5,
+          command=lambda: pauseImage()).grid(row=0, column=1, sticky=tk.N + tk.E + tk.S + tk.W)
 
-# Next button
-tk.Button(window, text='Next image', width=5, command=lambda: nextImage(1)).grid(row=0, column=2,
-                                                                                 sticky=tk.N + tk.E + tk.S + tk.W)
-
-# Load image
+# next button
+tk.Button(window, text='Next image', width=5,
+          command=lambda: nextImage(1)).grid(row=0, column=2, sticky=tk.N + tk.E + tk.S + tk.W)
+# load image
 cur_photo = loadImage(img_list[cur_img_index])
 
-# Create a canvas that can fit the above image
-canvas = tk.Canvas(window, width=default_image_width, height=default_image_height)
-canvas.grid(row=1, columnspan=3)
+# label for image and timer
+timeImgLabel = tk.Label(image=cur_photo, text="00:00", font=("Arial", 24), foreground='blue', compound='bottom')
+timeImgLabel.grid(row=1, column=0, columnspan=3, sticky=tk.N + tk.E + tk.S + tk.W)
 
-# Add a PhotoImage to the Canvas
-canvas_img = canvas.create_image(0, 0, image=cur_photo, anchor=tk.NW)
-
-# Callback to update timer and change image
+# callback to update timer and change image
 window.after(1000, updateTimeLabel)
 
-# Run the window loop
+# run the window loop
 window.mainloop()
 
-#for zip_extract_temp_path in zip_extract_temp_paths:
-#    if zip_extract_temp_path and exists(zip_extract_temp_path):
-#        shutil.rmtree(zip_extract_temp_path)
-
-# Some statistics
+# some statistics
 total_time_spent += (max_timer_value - cur_timer)
+
 print('{} images were drawn in {} seconds (average {:.2f} seconds per image)'.format(
     total_image_shown, total_time_spent, total_time_spent / total_image_shown))
