@@ -6,12 +6,20 @@ import tkinter as tk
 import PIL.Image
 import PIL.ImageTk
 import PIL.ImageOps
+import screeninfo
+import win32clipboard
+
 from os import walk
 from os.path import join, exists
 from zipfile import ZipFile
+from io import BytesIO
 
 image_extensions = ['.jpg', '.png', '.bmp']
 zip_extensions = ['.zip']
+
+# some statistics
+total_image_shown = 0
+total_time_spent = 0
 
 
 def is_file_valid(file_name, extensions):
@@ -55,9 +63,162 @@ def findAllSupportedZipFiles(zip_file_list):
     return findAllSupportedFiles(temp_path_names, image_extensions)
 
 
-# some statistics
-total_image_shown = 0
-total_time_spent = 0
+def send_to_clipboard(clip_type, data):
+    win32clipboard.OpenClipboard()
+    win32clipboard.EmptyClipboard()
+    win32clipboard.SetClipboardData(clip_type, data)
+    win32clipboard.CloseClipboard()
+
+
+def saveToClipboard(file_path):
+    image = PIL.Image.open(file_path)
+
+    output = BytesIO()
+    image.convert("RGB").save(output, "BMP")
+    data = output.getvalue()[14:]
+    output.close()
+
+    send_to_clipboard(win32clipboard.CF_DIB, data)
+
+
+def updateTimeLabel():
+    global timer_paused
+    global cur_timer
+    global timeImgLabel
+
+    if not timer_paused:
+        cur_timer -= 1
+        if cur_timer < 0:
+            nextImage(1)
+
+    textTime = '{:02d}:{:02d}'.format(int(cur_timer / 60), int(cur_timer % 60))
+    window.title('Slide show ({})'.format(textTime))
+
+    timeImgLabel.config(text=textTime)
+
+    # when run out of time - make timer red
+    if cur_timer <= 5:
+        timeImgLabel.config(foreground='red')
+
+    window.after(1000, updateTimeLabel)
+
+
+def nextImage(direction):
+    global cur_img_index, cur_timer, cur_photo
+    global total_image_shown, total_time_spent
+
+    total_time_spent += (max_timer_value - cur_timer)
+
+    print('Took {} seconds. '.format(max_timer_value - cur_timer))
+
+    cur_timer = max_timer_value
+
+    # set label default color
+    timeImgLabel.config(foreground='blue')
+
+    # next image index
+    cur_img_index += direction
+
+    if cur_img_index == len(img_list):
+        cur_img_index = 0
+    elif cur_img_index < 0:
+        cur_img_index = len(img_list) - 1
+
+    cur_photo = loadImage(img_list[cur_img_index])
+
+    timeImgLabel.config(image=cur_photo)
+
+    wrap_length = window.winfo_width()
+    wrap_length -= wrap_length / 6
+
+    imgFileNameLabel.config(text=img_list[cur_img_index], wraplength=wrap_length)   
+
+
+def pauseImage():
+    global timer_paused
+
+    if timer_paused:
+        timer_paused = False
+        print('Unpaused ... ')
+    else:
+        timer_paused = True
+        print('Paused ... ')
+
+
+def copyImage():
+    print('Copy to clipboard: {0}'.format(img_list[cur_img_index]))
+    saveToClipboard(img_list[cur_img_index])
+
+
+def getTotalMonitorsWidth():
+    monitors = screeninfo.get_monitors()
+
+    total_width = 0
+    for m in reversed(monitors):
+        total_width += m.width
+
+    return total_width
+
+
+def loadImage(img_file_path):
+    global w_width, w_height, total_image_shown, screen_width
+
+    # window default size
+    w_width = default_image_width
+    w_height = default_image_height
+
+    # load an image
+    pil_img = PIL.Image.open(img_file_path)
+
+    pil_img = PIL.ImageOps.exif_transpose(pil_img)
+
+    # get the image dimensions
+    width, height = pil_img.size
+
+    # make window well scaled and not greater when original dimensions
+    img_ratio = width / height
+    wnd_def_ratio = w_width / w_height
+
+    if img_ratio > wnd_def_ratio:
+        w_height = int(w_width / img_ratio)
+    else:
+        w_width = int(w_height * img_ratio)
+
+    # get screen width and height
+#    ws = window.winfo_screenwidth()  # width of the screen
+    hs = window.winfo_screenheight()  # height of the screen
+
+    # calculate x and y coordinates for the Tk root window
+    button_height = int(26 * 2.66)
+
+    # image file name height
+    fileName_height = 20
+
+    x = screen_width - w_width - screen_width / 64
+    y = hs / 32 + button_height
+
+    if y > (hs - w_height):
+        y = 0
+
+    # just magic variable
+    border_x = 6
+
+    # set the dimensions of the screen and where it is placed
+    # if we don't see right side - slightly move window to the left
+    if window.winfo_x() > x:
+        window.geometry('%dx%d+%d+%d' % (w_width + border_x, w_height + button_height + fileName_height, x, y))
+    else:
+        window.geometry('%dx%d' % (w_width + border_x, w_height + button_height + fileName_height))
+
+    pil_img = pil_img.resize((w_width, w_height), resample=PIL.Image.LANCZOS)
+
+    print('{}, w={}, h={}'.format(img_file_path, w_width, w_height))
+
+    total_image_shown += 1
+
+    # use PIL (Pillow) to convert to a PhotoImage
+    return PIL.ImageTk.PhotoImage(pil_img)
+
 
 # command line arguments
 parser = argparse.ArgumentParser(description='Rotate images from directory in given timeout.')
@@ -135,122 +296,10 @@ random.shuffle(img_list)
 
 print('{} images found'.format(len(img_list)))
 
+# get screen width in multi-monitor configuration
+screen_width = getTotalMonitorsWidth()
 
-def updateTimeLabel():
-    global timer_paused
-    global cur_timer
-    global timeImgLabel
-
-    if not timer_paused:
-        cur_timer -= 1
-        if cur_timer < 0:
-            nextImage(1)
-
-    textTime = '{:02d}:{:02d}'.format(int(cur_timer / 60), int(cur_timer % 60))
-    window.title('Slide show ({})'.format(textTime))
-
-    timeImgLabel.config(text=textTime)
-
-    # when run out of time - make timer red
-    if cur_timer <= 5:
-        timeImgLabel.config(foreground='red')
-
-    window.after(1000, updateTimeLabel)
-
-
-def nextImage(direction):
-    global cur_img_index, cur_timer, cur_photo
-    global total_image_shown, total_time_spent
-
-    total_time_spent += (max_timer_value - cur_timer)
-
-    print('Took {} seconds. '.format(max_timer_value - cur_timer))
-
-    cur_timer = max_timer_value
-
-    # set label default color
-    timeImgLabel.config(foreground='blue')
-
-    # next image index
-    cur_img_index += direction
-
-    if cur_img_index == len(img_list):
-        cur_img_index = 0
-    elif cur_img_index < 0:
-        cur_img_index = len(img_list) - 1
-
-    cur_photo = loadImage(img_list[cur_img_index])
-
-    timeImgLabel.config(image=cur_photo)
-
-
-def pauseImage():
-    global timer_paused
-
-    if timer_paused:
-        timer_paused = False
-        print('Unpaused ... ')
-    else:
-        timer_paused = True
-        print('Paused ... ')
-
-
-def loadImage(img_file_path):
-    global w_width, w_height, total_image_shown
-
-    # window default size
-    w_width = default_image_width
-    w_height = default_image_height
-
-    # load an image
-    pil_img = PIL.Image.open(img_file_path)
-
-    pil_img = PIL.ImageOps.exif_transpose(pil_img)
-
-    # get the image dimensions
-    width, height = pil_img.size
-
-    # make window well scaled and not greater when original dimensions
-    img_ratio = width / height
-    wnd_def_ratio = w_width / w_height
-
-    if img_ratio > wnd_def_ratio:
-        w_height = int(w_width / img_ratio)
-    else:
-        w_width = int(w_height * img_ratio)
-
-    # get screen width and height
-    ws = window.winfo_screenwidth()  # width of the screen
-    hs = window.winfo_screenheight()  # height of the screen
-
-    # calculate x and y coordinates for the Tk root window
-    button_height = int(26 * 2.66)
-
-    x = ws - w_width - ws / 64
-    y = hs / 32 + button_height
-
-    if y > (hs - w_height):
-        y = 0
-
-    # just magic variable
-    border_x = 6
-
-    # set the dimensions of the screen and where it is placed
-    # if we don't see right side - slightly move window to the left
-    if window.winfo_x() > x:
-        window.geometry('%dx%d+%d+%d' % (w_width + border_x, w_height + button_height, x, y))
-    else:
-        window.geometry('%dx%d' % (w_width + border_x, w_height + button_height))
-
-    pil_img = pil_img.resize((w_width, w_height), resample=PIL.Image.LANCZOS)
-
-    print('{}, w={}, h={}'.format(img_file_path, w_width, w_height))
-
-    total_image_shown += 1
-
-    # use PIL (Pillow) to convert to a PhotoImage
-    return PIL.ImageTk.PhotoImage(pil_img)
-
+print('Total monitor(s) width in pixels: {0}'.format(screen_width))
 
 # create a window
 window = tk.Tk()
@@ -264,15 +313,24 @@ tk.Button(window, text='Prev image', width=5,
 tk.Button(window, text='Pause', width=5,
           command=lambda: pauseImage()).grid(row=0, column=1, sticky=tk.N + tk.E + tk.S + tk.W)
 
+# copy button
+tk.Button(window, text='Copy', width=5,
+          command=lambda: copyImage()).grid(row=0, column=2, sticky=tk.N + tk.E + tk.S + tk.W)
+
 # next button
 tk.Button(window, text='Next image', width=5,
-          command=lambda: nextImage(1)).grid(row=0, column=2, sticky=tk.N + tk.E + tk.S + tk.W)
+          command=lambda: nextImage(1)).grid(row=0, column=3, sticky=tk.N + tk.E + tk.S + tk.W)
+
 # load image
 cur_photo = loadImage(img_list[cur_img_index])
 
 # label for image and timer
 timeImgLabel = tk.Label(image=cur_photo, text="00:00", font=("Arial", 24), foreground='blue', compound='bottom')
-timeImgLabel.grid(row=1, column=0, columnspan=3, sticky=tk.N + tk.E + tk.S + tk.W)
+timeImgLabel.grid(row=1, column=0, columnspan=4, sticky=tk.N + tk.E + tk.S + tk.W)
+
+imgFileNameLabel = tk.Label(text=img_list[cur_img_index], compound='bottom', justify='left',
+                            wraplength=default_image_width - default_image_width/5)
+imgFileNameLabel.grid(row=2, column=0, columnspan=4, sticky=tk.N + tk.S + tk.W)
 
 # callback to update timer and change image
 window.after(1000, updateTimeLabel)
