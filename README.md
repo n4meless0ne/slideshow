@@ -8,6 +8,8 @@ This tool helps artists to practice gesture drawings using images on their local
 - Python 3.x: See https://www.python.org/getit/
 - tkinter: See https://tkdocs.com/tutorial/install.html
 - Pillow: See https://pillow.readthedocs.io/en/stable/installation.html or just type "pip install Pillow" in command line
+- pip install screeninfo
+- pip install pywin32
 
 2. Usage and arguments
 
