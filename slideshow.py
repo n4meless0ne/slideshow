@@ -147,7 +147,7 @@ def nextImage(direction):
         cur_img_index = len(img_list) - 1
 
     cur_image = loadImage(img_list[cur_img_index])
-    
+
     # use PIL (Pillow) to convert to a PhotoImage
     cur_photo = PIL.ImageTk.PhotoImage(cur_image)
 
@@ -166,10 +166,10 @@ def mirrorImage():
     print('Mirror image: {0}'.format(img_list[cur_img_index]))
 
     cur_image = PIL.ImageOps.mirror(cur_image)
-    
+
     # use PIL (Pillow) to convert to a PhotoImage
     cur_photo = PIL.ImageTk.PhotoImage(cur_image)
-    
+
     timeImgLabel.config(image=cur_photo)
 
 
@@ -209,7 +209,7 @@ def loadImage(img_file_path):
         target_img_width = int(target_img_height * cur_img_ratio)
 
     # get screen width and height
-#    ws = window.winfo_screenwidth()  # width of the screen
+    # ws = window.winfo_screenwidth()  # width of the screen
     hs = window.winfo_screenheight()  # height of the screen
 
     # calculate x and y coordinates for the Tk root window
