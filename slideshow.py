@@ -13,6 +13,7 @@ from os import walk
 from os.path import join, exists
 from zipfile import ZipFile
 from io import BytesIO
+from pathlib import Path
 
 image_extensions = ['.jpg', '.png', '.bmp']
 zip_extensions = ['.zip']
@@ -24,7 +25,7 @@ total_time_spent = 0
 cur_window_width = 0
 cur_window_height = 0
 
-count_buttons = 5
+count_buttons = 6
 
 
 def is_file_valid(file_name, extensions):
@@ -121,6 +122,17 @@ def pauseImage():
         print('Paused ... ')
 
 
+def getIndexOfNextImageInSameFolder():
+    global cur_img_index
+    cur_dir = Path(img_list[cur_img_index])
+
+    for i in range(cur_img_index + 1, len(img_list)):
+        if Path(img_list[i]).parent == cur_dir.parent:
+            return i
+
+    return cur_img_index + 1
+
+
 def nextImage(direction):
     global cur_img_index, cur_timer, cur_photo, timer_paused, cur_window_width, cur_image
     global total_image_shown, total_time_spent
@@ -139,7 +151,11 @@ def nextImage(direction):
     timeImgLabel.config(foreground='blue')
 
     # next image index
-    cur_img_index += direction
+    if direction == 2:
+        # next image in same folder as current image
+        cur_img_index = getIndexOfNextImageInSameFolder()
+    else:
+        cur_img_index += direction
 
     if cur_img_index == len(img_list):
         cur_img_index = 0
@@ -345,9 +361,13 @@ tk.Button(window, text='Copy', width=5,
 tk.Button(window, text='Mirror', width=5,
           command=lambda: mirrorImage()).grid(row=0, column=3, sticky=tk.N + tk.E + tk.S + tk.W)
 
+# next (in folder) button
+tk.Button(window, text='Next in fld', width=5,
+          command=lambda: nextImage(2)).grid(row=0, column=4, sticky=tk.N + tk.E + tk.S + tk.W)
+
 # next button
 tk.Button(window, text='Next', width=5,
-          command=lambda: nextImage(1)).grid(row=0, column=4, sticky=tk.N + tk.E + tk.S + tk.W)
+          command=lambda: nextImage(1)).grid(row=0, column=5, sticky=tk.N + tk.E + tk.S + tk.W)
 
 # load image
 cur_image = loadImage(img_list[cur_img_index])
