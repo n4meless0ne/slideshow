@@ -126,7 +126,13 @@ def getIndexOfNextImageInSameFolder():
     global cur_img_index
     cur_dir = Path(img_list[cur_img_index])
 
+    # search from current index till the end of list
     for i in range(cur_img_index + 1, len(img_list)):
+        if Path(img_list[i]).parent == cur_dir.parent:
+            return i
+
+    # search from begin of list till current index
+    for i in range(0, cur_img_index - 1):
         if Path(img_list[i]).parent == cur_dir.parent:
             return i
 
