@@ -15,6 +15,7 @@ from zipfile import ZipFile
 from io import BytesIO
 from pathlib import Path
 
+# supported file extensions
 image_extensions = ['.jpg', '.png', '.bmp']
 zip_extensions = ['.zip']
 
@@ -22,10 +23,16 @@ zip_extensions = ['.zip']
 total_image_shown = 0
 total_time_spent = 0
 
+# helper variables for resize the window to fit new image
 cur_window_width = 0
 cur_window_height = 0
 
+# total button count
 count_buttons = 6
+
+# color theme for timer  setup here
+timer_foreground_color = 'cyan'
+timer_foreground_color_low = 'red'
 
 
 def is_file_valid(file_name, extensions):
@@ -104,7 +111,7 @@ def updateTimeLabel():
 
     # when run out of time - make timer red
     if cur_timer <= 5:
-        timeImgLabel.config(foreground='red')
+        timeImgLabel.config(foreground=timer_foreground_color_low)
 
     window.after(1000, updateTimeLabel)
 
@@ -154,7 +161,7 @@ def nextImage(direction):
         pauseImage()
 
     # set label default color
-    timeImgLabel.config(foreground='blue')
+    timeImgLabel.config(foreground=timer_foreground_color)
 
     # next image index
     if direction == 2:
@@ -351,6 +358,10 @@ print('Total monitor(s) width in pixels: {0}'.format(screen_width))
 window = tk.Tk()
 window.title('Slide show')
 
+# setup color palette for window
+window.tk_setPalette(background='#26242f', foreground='gray90',
+                     activeBackground='gray10', activeForeground='gray80')
+
 # prev button
 tk.Button(window, text='Prev', width=5,
           command=lambda: nextImage(-1)).grid(row=0, column=0, sticky=tk.N + tk.E + tk.S + tk.W)
@@ -382,11 +393,12 @@ cur_image = loadImage(img_list[cur_img_index])
 cur_photo = PIL.ImageTk.PhotoImage(cur_image)
 
 # label for image and timer
-timeImgLabel = tk.Label(image=cur_photo, text="00:00", font=("Arial", 24), foreground='blue', compound='bottom')
+timeImgLabel = tk.Label(image=cur_photo, text="00:00", font=("Arial", 24),
+                        foreground=timer_foreground_color, compound='bottom')
 timeImgLabel.grid(row=1, column=0, columnspan=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
 
-imgFileNameLabel = tk.Label(text=img_list[cur_img_index], compound='bottom', justify='left',
-                            wraplength=cur_window_width)
+imgFileNameLabel = tk.Label(text=img_list[cur_img_index],
+                            compound='bottom', justify='left', wraplength=cur_window_width)
 imgFileNameLabel.grid(row=2, column=0, columnspan=count_buttons, sticky=tk.N + tk.S + tk.W)
 
 # callback to update timer and change image
