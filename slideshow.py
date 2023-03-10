@@ -259,7 +259,7 @@ def loadImage(img_file_path):
     else:
         window.geometry('%dx%d' % (cur_window_width, target_img_height + button_height + fileName_height))
 
-    pil_img = pil_img.resize((target_img_width, target_img_height), resample=PIL.Image.LANCZOS)
+    pil_img = pil_img.resize((target_img_width, target_img_height), resample=PIL.Image.Resampling.LANCZOS)
 
     print('{}, w={}, h={}'.format(img_file_path, target_img_width, target_img_height))
 
