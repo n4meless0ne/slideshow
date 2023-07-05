@@ -35,6 +35,78 @@ timer_foreground_color = 'cyan'
 timer_foreground_color_low = 'red'
 
 
+class ImagePath:
+    """Path to image"""
+    def __init__(self, img_path):
+        self.img_path = img_path
+
+    def get_path(self):
+        return self.img_path
+
+    def same_folder(self, other):
+        return Path(self.img_path).parent == Path(other.img_path).parent
+
+
+class ImagePathInZip(ImagePath):
+    """Path to the zip with image in it + image file stored in this zip file
+    If img_path empty - read image list from zip"""
+    def __init__(self, zip_path, img_path):
+        self.zip_path = zip_path
+        self.img_path = img_path
+        self.real_path_to_img = ''
+
+    def get_path(self):
+        global cur_img_index
+
+        if len(self.real_path_to_img) != 0:
+            return self.real_path_to_img
+
+        with ZipFile(self.zip_path, 'r') as zipObj:
+
+            # if img_path empty - read all images from zip
+            if not self.img_path or self.img_path == '':
+                for img_file in zipObj.namelist():
+                    if is_file_valid(img_file, image_extensions):
+                        if not self.img_path or self.img_path == '':
+                            # set image in current element
+                            self.img_path = img_file
+                        else:
+                            # add other images in list
+                            img_list.append(ImagePathInZip(self.zip_path, img_file))
+
+                # shuffle images which go next in list to keep Next/Prev button working (more or less)
+                if (cur_img_index + 1) < len(img_list):
+                    # make copy
+                    img_list_copy = img_list[(cur_img_index + 1):]
+
+                    # shuffle it
+                    random.shuffle(img_list_copy)
+
+                    # return back in list
+                    img_list[(cur_img_index + 1):] = img_list_copy
+
+            if not self.img_path or self.img_path == '':
+                # zip without images - don't know what to do
+                return ''
+
+            # create temp directory
+            temp_path = tempfile.TemporaryDirectory()
+
+            # extract files into temp directory
+            zipObj.extract(self.img_path, temp_path.name)
+
+            # save temp path object in global list
+            zip_extract_temp_paths.append(temp_path)
+
+            # save path to temp directory in list
+            self.real_path_to_img = join(temp_path.name, self.img_path)
+
+            return self.real_path_to_img
+
+    def same_folder(self, other):
+        return self.zip_path == other.zip_path
+
+
 def is_file_valid(file_name, extensions):
     return any(x in str.lower(file_name) for x in extensions)
 
@@ -52,6 +124,15 @@ def findAllSupportedFiles(path_list, extensions):
                     files_list.append(join(dirpath, name))
 
     return files_list
+
+
+def toImgList(path_list):
+    temp_img_list = []
+
+    for path in path_list:
+        temp_img_list.append(ImagePath(path))
+
+    return temp_img_list
 
 
 def findAllSupportedZipFiles(zip_file_list):
@@ -73,7 +154,21 @@ def findAllSupportedZipFiles(zip_file_list):
             # save path to temp directory in list
             temp_path_names.append(temp_path.name)
 
-    return findAllSupportedFiles(temp_path_names, image_extensions)
+    return toImgList(findAllSupportedFiles(temp_path_names, image_extensions))
+
+
+def findAllSupportedZipFilesRandom(zip_file_list):
+    temp_list = []
+
+    for zip_file in zip_file_list:
+        if not zip_file or not exists(zip_file):
+            print('File {} not found'.format(zip_file))
+
+        print('File {} found'.format(zip_file))
+
+        temp_list.append(ImagePathInZip(zip_file, ''))
+
+    return temp_list
 
 
 def send_to_clipboard(clip_type, data):
@@ -131,16 +226,16 @@ def pauseImage():
 
 def getIndexOfNextImageInSameFolder():
     global cur_img_index
-    cur_dir = Path(img_list[cur_img_index])
+    cur_dir = Path(img_list[cur_img_index].get_path())
 
     # search from current index till the end of list
     for i in range(cur_img_index + 1, len(img_list)):
-        if Path(img_list[i]).parent == cur_dir.parent:
+        if img_list[cur_img_index].same_folder(img_list[i]):
             return i
 
     # search from begin of list till current index
     for i in range(0, cur_img_index - 1):
-        if Path(img_list[i]).parent == cur_dir.parent:
+        if img_list[cur_img_index].same_folder(img_list[i]):
             return i
 
     return cur_img_index + 1
@@ -175,24 +270,24 @@ def nextImage(direction):
     elif cur_img_index < 0:
         cur_img_index = len(img_list) - 1
 
-    cur_image = loadImage(img_list[cur_img_index])
+    cur_image = loadImage(img_list[cur_img_index].get_path())
 
     # use PIL (Pillow) to convert to a PhotoImage
     cur_photo = PIL.ImageTk.PhotoImage(cur_image)
 
     timeImgLabel.config(image=cur_photo)
 
-    imgFileNameLabel.config(text=img_list[cur_img_index], wraplength=cur_window_width)
+    imgFileNameLabel.config(text=img_list[cur_img_index].get_path(), wraplength=cur_window_width)
 
 
 def copyImage():
-    print('Copy to clipboard: {0}'.format(img_list[cur_img_index]))
-    saveToClipboard(img_list[cur_img_index])
+    print('Copy to clipboard: {0}'.format(img_list[cur_img_index].get_path()))
+    saveToClipboard(img_list[cur_img_index].get_path())
 
 
 def mirrorImage():
     global cur_photo, cur_image
-    print('Mirror image: {0}'.format(img_list[cur_img_index]))
+    print('Mirror image: {0}'.format(img_list[cur_img_index].get_path()))
 
     cur_image = PIL.ImageOps.mirror(cur_image)
 
@@ -222,6 +317,7 @@ def loadImage(img_file_path):
     # load an image
     pil_img = PIL.Image.open(img_file_path)
 
+    # apply exif information to rotate image properly (vertical or horizontal orientation)
     pil_img = PIL.ImageOps.exif_transpose(pil_img)
 
     # get the image dimensions
@@ -285,6 +381,9 @@ parser.add_argument('-path', metavar='path', default='', nargs='+',
 parser.add_argument('-zip-path', metavar='zip_path', default='',
                     help='path to the directory with zip files contains images')
 
+parser.add_argument('-zip-path-random', metavar='zip_path-random', default='',
+                    help='path to the directory with zip files contains images. Selected random image form any zip file')
+
 parser.add_argument('-zip-file', metavar='zip_file', default='', nargs='+',
                     help='zip files with images. You can specify many files.')
 
@@ -308,11 +407,14 @@ timer_paused = False
 default_image_width = args.width
 default_image_height = args.height
 
+# list of ImagePath
 img_list = []
+
 cur_img_index = 0
 cur_photo = 0
 cur_image = 0
 
+# keep created TemporaryDirectory objects here to prevent it from deletion (will be deleted after program exit)
 zip_extract_temp_paths = []
 
 if args.zip_file:
@@ -336,9 +438,24 @@ elif args.zip_path:
     # now peek one random archive file and extract it to the temp directory
     img_list = findAllSupportedZipFiles([random.choice(zip_files_list)])
 
+elif args.zip_path_random:
+
+    if not args.zip_path_random or not exists(args.zip_path_random):
+        print('Directory {} not found'.format(args.zip_path_random))
+        sys.exit(-1)
+
+    # if zip-path defined - use it to find archives
+    zip_files_list = findAllSupportedFiles([args.zip_path_random], zip_extensions)
+
+    if len(zip_files_list) == 0:
+        print('No supported archives found in directory {}'.format(args.zip_path))
+        sys.exit(-1)
+
+    img_list = findAllSupportedZipFilesRandom(zip_files_list)
+
 else:
     # use specified path or current directory to find all supported images
-    img_list = findAllSupportedFiles(args.path if args.path else '.', image_extensions)
+    img_list = toImgList(findAllSupportedFiles(args.path if args.path else '.', image_extensions))
 
 if len(img_list) == 0:
     print('No supported images found')
@@ -363,12 +480,12 @@ window.tk_setPalette(background='#26242f', foreground='gray90',
                      activeBackground='gray10', activeForeground='gray80')
 
 # prev button
-tk.Button(window, text='Prev', width=5,
-          command=lambda: nextImage(-1)).grid(row=0, column=0, sticky=tk.N + tk.E + tk.S + tk.W)
+tk.Button(window, text='Next>', width=5,
+          command=lambda: nextImage(1)).grid(row=0, column=0, sticky=tk.N + tk.E + tk.S + tk.W)
 
-# pause button
-pauseButton = tk.Button(window, text='Pause', width=5, command=lambda: pauseImage())
-pauseButton.grid(row=0, column=1, sticky=tk.N + tk.E + tk.S + tk.W)
+# next (in folder) button
+tk.Button(window, text='Next in fld', width=5,
+          command=lambda: nextImage(2)).grid(row=0, column=1, sticky=tk.N + tk.E + tk.S + tk.W)
 
 # copy button
 tk.Button(window, text='Copy', width=5,
@@ -378,16 +495,16 @@ tk.Button(window, text='Copy', width=5,
 tk.Button(window, text='Mirror', width=5,
           command=lambda: mirrorImage()).grid(row=0, column=3, sticky=tk.N + tk.E + tk.S + tk.W)
 
-# next (in folder) button
-tk.Button(window, text='Next in fld', width=5,
-          command=lambda: nextImage(2)).grid(row=0, column=4, sticky=tk.N + tk.E + tk.S + tk.W)
+# pause button
+pauseButton = tk.Button(window, text='Pause', width=5, command=lambda: pauseImage())
+pauseButton.grid(row=0, column=4, sticky=tk.N + tk.E + tk.S + tk.W)
 
 # next button
-tk.Button(window, text='Next', width=5,
-          command=lambda: nextImage(1)).grid(row=0, column=5, sticky=tk.N + tk.E + tk.S + tk.W)
+tk.Button(window, text='<Prev', width=5,
+          command=lambda: nextImage(-1)).grid(row=0, column=5, sticky=tk.N + tk.E + tk.S + tk.W)
 
 # load image
-cur_image = loadImage(img_list[cur_img_index])
+cur_image = loadImage(img_list[cur_img_index].get_path())
 
 # use PIL (Pillow) to convert to a PhotoImage
 cur_photo = PIL.ImageTk.PhotoImage(cur_image)
@@ -397,7 +514,7 @@ timeImgLabel = tk.Label(image=cur_photo, text="00:00", font=("Arial", 24),
                         foreground=timer_foreground_color, compound='bottom')
 timeImgLabel.grid(row=1, column=0, columnspan=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
 
-imgFileNameLabel = tk.Label(text=img_list[cur_img_index],
+imgFileNameLabel = tk.Label(text=img_list[cur_img_index].get_path(),
                             compound='bottom', justify='left', wraplength=cur_window_width)
 imgFileNameLabel.grid(row=2, column=0, columnspan=count_buttons, sticky=tk.N + tk.S + tk.W)
 
