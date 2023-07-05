@@ -15,23 +15,30 @@ This tool helps artists to practice gesture drawings using images on their local
 
 ```
 usage: slideshow.py [-h] [-path path [path ...]] [-zip-path zip_path]
+                    [-zip-path-random zip_path-random]
                     [-zip-file zip_file [zip_file ...]] [-timeout TIMEOUT]
                     [-width WIDTH] [-height HEIGHT]
 
 Rotate images from directory in given timeout.
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -path path [path ...]
-                        paths to the images directory (current directory by
+                        Paths to the images directory (current directory by
                         default). You can specify many directories
-  -zip-path zip_path    path to the directory with zip files contains images
+  -zip-path zip_path    Path to the directory with zip files contains images.
+                        The one random zip file selected, then all it images
+                        will be shown in random order
+  -zip-path-random zip_path-random
+                        Path to the directory with zip files contains images.
+                        All zip files selected, then all images from all these
+                        files will be shown in random order
   -zip-file zip_file [zip_file ...]
-                        zip files with images. You can specify many files.
-  -timeout TIMEOUT      timeout in seconds (60 by default)
-  -width WIDTH          window width in pixels (600 by default)
-  -height HEIGHT        window height in pixels (800 by default)
-  ```
+                        Zip files with images. You can specify many files.
+  -timeout TIMEOUT      Timeout in seconds (60 by default)
+  -width WIDTH          Window width in pixels (600 by default)
+  -height HEIGHT        Window height in pixels (800 by default)
+```
 
 Example: 
 ```
