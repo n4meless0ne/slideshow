@@ -375,26 +375,28 @@ def loadImage(img_file_path):
 parser = argparse.ArgumentParser(description='Rotate images from directory in given timeout.')
 
 parser.add_argument('-path', metavar='path', default='', nargs='+',
-                    help='paths to the images directory (current directory by default). You can specify many '
+                    help='Paths to the images directory (current directory by default). You can specify many '
                          'directories')
 
 parser.add_argument('-zip-path', metavar='zip_path', default='',
-                    help='path to the directory with zip files contains images')
+                    help='Path to the directory with zip files contains images. The one random zip file selected,'
+                         ' then all it images will be shown in random order')
 
-parser.add_argument('-zip-path-random', metavar='zip_path-random', default='',
-                    help='path to the directory with zip files contains images. Selected random image form any zip file')
+parser.add_argument('-zip-path-random', metavar='zip_path_random', default='',
+                    help='Path to the directory with zip files contains images. All zip files selected,'
+                         ' then all images from all these files will be shown in random order')
 
 parser.add_argument('-zip-file', metavar='zip_file', default='', nargs='+',
-                    help='zip files with images. You can specify many files.')
+                    help='Zip files with images. You can specify many files.')
 
 parser.add_argument('-timeout', dest='timeout', type=int, default=60,
-                    help='timeout in seconds (60 by default)')
+                    help='Timeout in seconds (60 by default)')
 
 parser.add_argument('-width', dest='width', type=int, default=600,
-                    help='window width in pixels (600 by default)')
+                    help='Window width in pixels (600 by default)')
 
 parser.add_argument('-height', dest='height', type=int, default=800,
-                    help='window height in pixels (800 by default)')
+                    help='Window height in pixels (800 by default)')
 
 args = parser.parse_args()
 print(args)
@@ -480,12 +482,12 @@ window.tk_setPalette(background='#26242f', foreground='gray90',
                      activeBackground='gray10', activeForeground='gray80')
 
 # prev button
-tk.Button(window, text='Next>', width=5,
-          command=lambda: nextImage(1)).grid(row=0, column=0, sticky=tk.N + tk.E + tk.S + tk.W)
+tk.Button(window, text='Prev', width=5,
+          command=lambda: nextImage(-1)).grid(row=0, column=0, sticky=tk.N + tk.E + tk.S + tk.W)
 
-# next (in folder) button
-tk.Button(window, text='Next in fld', width=5,
-          command=lambda: nextImage(2)).grid(row=0, column=1, sticky=tk.N + tk.E + tk.S + tk.W)
+# pause button
+pauseButton = tk.Button(window, text='Pause', width=5, command=lambda: pauseImage())
+pauseButton.grid(row=0, column=1, sticky=tk.N + tk.E + tk.S + tk.W)
 
 # copy button
 tk.Button(window, text='Copy', width=5,
@@ -495,13 +497,13 @@ tk.Button(window, text='Copy', width=5,
 tk.Button(window, text='Mirror', width=5,
           command=lambda: mirrorImage()).grid(row=0, column=3, sticky=tk.N + tk.E + tk.S + tk.W)
 
-# pause button
-pauseButton = tk.Button(window, text='Pause', width=5, command=lambda: pauseImage())
-pauseButton.grid(row=0, column=4, sticky=tk.N + tk.E + tk.S + tk.W)
+# next (in folder) button
+tk.Button(window, text='Next in fld', width=5,
+          command=lambda: nextImage(2)).grid(row=0, column=4, sticky=tk.N + tk.E + tk.S + tk.W)
 
 # next button
-tk.Button(window, text='<Prev', width=5,
-          command=lambda: nextImage(-1)).grid(row=0, column=5, sticky=tk.N + tk.E + tk.S + tk.W)
+tk.Button(window, text='Next', width=5,
+          command=lambda: nextImage(1)).grid(row=0, column=5, sticky=tk.N + tk.E + tk.S + tk.W)
 
 # load image
 cur_image = loadImage(img_list[cur_img_index].get_path())
