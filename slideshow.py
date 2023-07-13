@@ -10,7 +10,7 @@ import screeninfo
 import win32clipboard
 
 from os import walk
-from os.path import join, exists
+from os.path import join, exists, basename, splitext
 from zipfile import ZipFile
 from io import BytesIO
 from pathlib import Path
@@ -50,9 +50,17 @@ class ImagePath:
 class ImagePathInZip(ImagePath):
     """Path to the zip with image in it + image file stored in this zip file
     If img_path empty - read image list from zip"""
-    def __init__(self, zip_path, img_path):
+    def __init__(self, zip_path, img_path, temp_path) :
+        # path to archive
         self.zip_path = zip_path
+
+        # image file name in archive
         self.img_path = img_path
+
+        # one temporary directory for all zip archive
+        self.temp_path = temp_path
+
+        # if image was opened from archive - keep path to it here
         self.real_path_to_img = ''
 
     def get_path(self):
@@ -65,14 +73,21 @@ class ImagePathInZip(ImagePath):
 
             # if img_path empty - read all images from zip
             if not self.img_path or self.img_path == '':
+                # create temp directory
+                temp_path = tempfile.TemporaryDirectory(prefix=splitext(basename(self.zip_path))[0] + '_')
+
+                # save temp path object in global list
+                zip_extract_temp_paths.append(temp_path)
+
                 for img_file in zipObj.namelist():
                     if is_file_valid(img_file, image_extensions):
                         if not self.img_path or self.img_path == '':
                             # set image in current element
                             self.img_path = img_file
+                            self.temp_path = temp_path.name
                         else:
                             # add other images in list
-                            img_list.append(ImagePathInZip(self.zip_path, img_file))
+                            img_list.append(ImagePathInZip(self.zip_path, img_file, temp_path.name))
 
                 # shuffle images which go next in list to keep Next/Prev button working (more or less)
                 if (cur_img_index + 1) < len(img_list):
@@ -82,24 +97,18 @@ class ImagePathInZip(ImagePath):
                     # shuffle it
                     random.shuffle(img_list_copy)
 
-                    # return back in list
+                    # return temporary list to the back of the list
                     img_list[(cur_img_index + 1):] = img_list_copy
 
             if not self.img_path or self.img_path == '':
                 # zip without images - don't know what to do
                 return ''
 
-            # create temp directory
-            temp_path = tempfile.TemporaryDirectory()
-
             # extract files into temp directory
-            zipObj.extract(self.img_path, temp_path.name)
-
-            # save temp path object in global list
-            zip_extract_temp_paths.append(temp_path)
+            zipObj.extract(self.img_path, self.temp_path)
 
             # save path to temp directory in list
-            self.real_path_to_img = join(temp_path.name, self.img_path)
+            self.real_path_to_img = join(self.temp_path, self.img_path)
 
             return self.real_path_to_img
 
@@ -166,7 +175,7 @@ def findAllSupportedZipFilesRandom(zip_file_list):
 
         print('File {} found'.format(zip_file))
 
-        temp_list.append(ImagePathInZip(zip_file, ''))
+        temp_list.append(ImagePathInZip(zip_file, '', ''))
 
     return temp_list
 
