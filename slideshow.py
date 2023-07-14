@@ -28,7 +28,7 @@ cur_window_width = 0
 cur_window_height = 0
 
 # total button count
-count_buttons = 6
+count_buttons = 0
 
 # color theme for timer  setup here
 timer_foreground_color = 'cyan'
@@ -43,8 +43,20 @@ class ImagePath:
     def get_path(self):
         return self.img_path
 
+    def get_folder(self):
+        return Path(self.img_path).parent
+
     def same_folder(self, other):
-        return Path(self.img_path).parent == Path(other.img_path).parent
+        return self.get_folder() == other.get_folder()
+
+    def exclude_folder(self):
+        global img_list
+
+        print('Exclude folder/archive: {0}'.format(self.get_folder()))
+        img_list = [item for item in img_list if not self.same_folder(item)]
+        print('{0} images left, current {1}'.format(len(img_list), cur_img_index))
+
+        nextImage(1)
 
 
 class ImagePathInZip(ImagePath):
@@ -62,6 +74,9 @@ class ImagePathInZip(ImagePath):
 
         # if image was opened from archive - keep path to it here
         self.real_path_to_img = ''
+
+    def get_folder(self):
+        return self.zip_path
 
     def get_path(self):
         global cur_img_index
@@ -111,9 +126,6 @@ class ImagePathInZip(ImagePath):
             self.real_path_to_img = join(self.temp_path, self.img_path)
 
             return self.real_path_to_img
-
-    def same_folder(self, other):
-        return self.zip_path == other.zip_path
 
 
 def is_file_valid(file_name, extensions):
@@ -233,9 +245,24 @@ def pauseImage():
         print('Paused ... ')
 
 
+def getIndexOfPrevImageInSameFolder():
+    global cur_img_index
+
+    # search from current index till the beginning of list
+    for i in reversed(range(0, cur_img_index - 1)):
+        if img_list[cur_img_index].same_folder(img_list[i]):
+            return i
+
+    # search from the end of the list till current index
+    for i in reversed(range(cur_img_index + 1, len(img_list))):
+        if img_list[cur_img_index].same_folder(img_list[i]):
+            return i
+
+    return cur_img_index + 1
+
+
 def getIndexOfNextImageInSameFolder():
     global cur_img_index
-    cur_dir = Path(img_list[cur_img_index].get_path())
 
     # search from current index till the end of list
     for i in range(cur_img_index + 1, len(img_list)):
@@ -256,7 +283,7 @@ def nextImage(direction):
 
     total_time_spent += (max_timer_value - cur_timer)
 
-    print('Took {} seconds. '.format(max_timer_value - cur_timer))
+    print('Image {0} took {1} second(s).'.format(cur_img_index, max_timer_value - cur_timer))
 
     cur_timer = max_timer_value
 
@@ -271,6 +298,9 @@ def nextImage(direction):
     if direction == 2:
         # next image in same folder as current image
         cur_img_index = getIndexOfNextImageInSameFolder()
+    elif direction == -2:
+        # prev image in same folder as current image
+        cur_img_index = getIndexOfPrevImageInSameFolder()
     else:
         cur_img_index += direction
 
@@ -304,6 +334,9 @@ def mirrorImage():
     cur_photo = PIL.ImageTk.PhotoImage(cur_image)
 
     timeImgLabel.config(image=cur_photo)
+
+def excludeFolder():
+    img_list[cur_img_index].exclude_folder()
 
 
 def getTotalMonitorsWidth():
@@ -492,27 +525,43 @@ window.tk_setPalette(background='#26242f', foreground='gray90',
 
 # prev button
 tk.Button(window, text='Prev', width=5,
-          command=lambda: nextImage(-1)).grid(row=0, column=0, sticky=tk.N + tk.E + tk.S + tk.W)
+          command=lambda: nextImage(-1)).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
+count_buttons += 1
+
+# prev (in folder) button
+tk.Button(window, text='Prev in fld', width=5,
+          command=lambda: nextImage(-2)).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
+count_buttons += 1
 
 # pause button
 pauseButton = tk.Button(window, text='Pause', width=5, command=lambda: pauseImage())
-pauseButton.grid(row=0, column=1, sticky=tk.N + tk.E + tk.S + tk.W)
+pauseButton.grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
+count_buttons += 1
 
 # copy button
 tk.Button(window, text='Copy', width=5,
-          command=lambda: copyImage()).grid(row=0, column=2, sticky=tk.N + tk.E + tk.S + tk.W)
+          command=lambda: copyImage()).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
+count_buttons += 1
 
-# copy button
+# mirror button
 tk.Button(window, text='Mirror', width=5,
-          command=lambda: mirrorImage()).grid(row=0, column=3, sticky=tk.N + tk.E + tk.S + tk.W)
+          command=lambda: mirrorImage()).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
+count_buttons += 1
+
+# exclude button
+tk.Button(window, text='Exclude fld', width=5,
+          command=lambda: excludeFolder()).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
+count_buttons += 1
 
 # next (in folder) button
 tk.Button(window, text='Next in fld', width=5,
-          command=lambda: nextImage(2)).grid(row=0, column=4, sticky=tk.N + tk.E + tk.S + tk.W)
+          command=lambda: nextImage(2)).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
+count_buttons += 1
 
 # next button
 tk.Button(window, text='Next', width=5,
-          command=lambda: nextImage(1)).grid(row=0, column=5, sticky=tk.N + tk.E + tk.S + tk.W)
+          command=lambda: nextImage(1)).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
+count_buttons += 1
 
 # load image
 cur_image = loadImage(img_list[cur_img_index].get_path())
