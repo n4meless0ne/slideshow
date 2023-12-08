@@ -15,6 +15,8 @@ from zipfile import ZipFile
 from io import BytesIO
 from pathlib import Path
 
+app_name = 'Just Draw!'
+
 # supported file extensions
 image_extensions = ['.jpg', '.png', '.bmp']
 zip_extensions = ['.zip']
@@ -62,12 +64,11 @@ class ImagePath:
 class ImagePathInZip(ImagePath):
     """Path to the zip with image in it + image file stored in this zip file
     If img_path empty - read image list from zip"""
-    def __init__(self, zip_path, img_path, temp_path) :
+    def __init__(self, zip_path, img_path, temp_path):
+        super().__init__(img_path)
+
         # path to archive
         self.zip_path = zip_path
-
-        # image file name in archive
-        self.img_path = img_path
 
         # one temporary directory for all zip archive
         self.temp_path = temp_path
@@ -221,7 +222,7 @@ def updateTimeLabel():
             nextImage(1)
 
     textTime = '{:02d}:{:02d}'.format(int(cur_timer / 60), int(cur_timer % 60))
-    window.title('Slide show ({})'.format(textTime))
+    window.title('{} ({})'.format(app_name, textTime))
 
     timeImgLabel.config(text=textTime)
 
@@ -334,6 +335,7 @@ def mirrorImage():
     cur_photo = PIL.ImageTk.PhotoImage(cur_image)
 
     timeImgLabel.config(image=cur_photo)
+
 
 def excludeFolder():
     img_list[cur_img_index].exclude_folder()
@@ -517,7 +519,7 @@ print('Total monitor(s) width in pixels: {0}'.format(screen_width))
 
 # create a window
 window = tk.Tk()
-window.title('Slide show')
+window.title(app_name)
 
 # setup color palette for window
 window.tk_setPalette(background='#26242f', foreground='gray90',
@@ -543,14 +545,14 @@ tk.Button(window, text='Copy', width=5,
           command=lambda: copyImage()).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
 count_buttons += 1
 
-# mirror button
-tk.Button(window, text='Mirror', width=5,
-          command=lambda: mirrorImage()).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
-count_buttons += 1
-
 # exclude button
 tk.Button(window, text='Exclude fld', width=5,
           command=lambda: excludeFolder()).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
+count_buttons += 1
+
+# mirror button
+tk.Button(window, text='Mirror', width=5,
+          command=lambda: mirrorImage()).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
 count_buttons += 1
 
 # next (in folder) button
@@ -562,6 +564,14 @@ count_buttons += 1
 tk.Button(window, text='Next', width=5,
           command=lambda: nextImage(1)).grid(row=0, column=count_buttons, sticky=tk.N + tk.E + tk.S + tk.W)
 count_buttons += 1
+
+# creating button which supports png transparency
+# canvas = tk.Canvas(window, width=300, height=300)
+# canvas.pack()
+
+# nextImage = PIL.ImageTk.PhotoImage(PIL.Image.open("img/next.png"))
+# nextButton = canvas.create_image(50, 50, image=nextImage)
+# canvas.tag_bind(nextButton, "Next", nextImage(1))
 
 # load image
 cur_image = loadImage(img_list[cur_img_index].get_path())
