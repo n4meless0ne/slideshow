@@ -6,7 +6,7 @@ This tool helps artists to practice gesture drawings using images on their local
 1. Requirements
 
 - Python 3.x: See https://www.python.org/getit/
-- tkinter: See https://tkdocs.com/tutorial/install.html
+- tkinter: See https://tkdocs.com/tutorial/install.html (included in the Python standard library)
 - Pillow: See https://pillow.readthedocs.io/en/stable/installation.html or just type "pip install Pillow" in command line
 - pip install screeninfo
 - pip install pywin32
